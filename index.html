@@ -1,0 +1,344 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=0" />  
+<title>Flappy Saucer</title>
+
+<meta property="twitter:creator" content="@eoinmcg" />
+<meta property="twitter:site" content="@eoinmcg" />
+<meta property="og:image" content="http://arcade.starfish.ie/flappy/assets/flappy_promo.png" />
+<meta property="twitter:url" content="http://arcade.starfish.ie/flappy" />
+<meta property="twitter:card" content="summary" />
+<meta property="twitter:image" content="http://arcade.starfish.ie/flappy/assets/flappy_promo.png" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="FlappySaucer" />
+<meta name="description" content="FlappyBird clone written in Phaser" />
+
+<meta property="og:title" content="FlappySaucer" />
+<meta property="og:description" content="FlappyBird clone written in Phaser" />
+<meta property="twitter:description" content="The easiest way to create digital magazines" />
+<meta property="twitter:title" content="FlappySaucer" />
+<meta property="og:url" content="http://arcade.starfish.ie/flappy" />
+
+<link rel="canonical" href="http://arcade.starfish.ie/flappy" />
+
+<style type="text/css">
+body { padding: 0; margin: 0; background: #000; color: #000; font: 1em/2em Arial, Helvetica, sans-serif; -webkit-touch-callout: none; -webkit-user-select: none; -khtml-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; } 
+
+* { user-select: none; -webkit-tap-highlight-color: rgb(0, 0, 0, 0); -webkit-touch-callout: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; }
+
+</style>
+
+</head>
+<body>
+	
+<script src="phaser.min.js"></script>
+
+<script>
+
+
+(function() {
+
+// set up all the variables we'll need
+var w = 320, // world width
+		h = 480, // world height
+		game,
+		gravity = 500,
+		isSplash = true, // start game in splash screen mode
+		pipes,
+		pipeInterval = Phaser.Timer.SECOND * 3,
+		// add just next 3 vars to fine tune difficulty
+		pipeSpeed = -50,
+		pipeGap = 60,
+		score = 0,
+		hiScore = localStorage.hiScore || 0,
+		ground,
+		platforms,
+		player,
+		background,
+		titleText,
+		scoreText,
+		startText,
+		gameoverText;
+
+
+
+var resize = function() {
+
+		game.stage.scaleMode = game.device.desktop ? 
+				Phaser.StageScaleMode.SHOW_ALL : 
+				Phaser.StageScaleMode.EXACT_FIT;
+
+		game.stage.scale.maxWidth = null; 
+		game.stage.scale.maxHeight = null;
+		game.stage.disableVisibilityChange = !0;
+		game.input.maxPointers = 1;
+		game.stage.disablePauseScreen = !0;
+		game.stage.scale.pageAlignHorizontally = !0;
+		game.stage.scale.setScreenSize();
+
+};
+
+var preload = function() {
+
+	game.load.image('background', 'assets/bg.png');
+	game.load.image('ground', 'assets/ground.png');
+	game.load.image('pipe', 'assets/pipe.png');
+
+	game.load.image('flappy', 'assets/flappy.png');
+
+	game.load.image('particle_1', 'assets/particle_1.png');
+	game.load.image('particle_2', 'assets/particle_2.png');
+	game.load.image('particle_3', 'assets/particle_3.png');
+
+	game.load.spritesheet('bang', 'assets/explosion.png', 34, 34, 8);
+
+};
+
+var create = function() {
+
+	// play nice on phones / tablets
+	resize();
+
+	// add background image, scaled to fit our
+	// screen dimensions
+	background = game.add.tileSprite(0, 0, w, h, 'background');
+
+
+	// add graphics for the ground
+	ground = game.add.sprite(0, 410, 'ground');
+
+	// create player at centre of screen
+	player = game.add.sprite(game.world.width /2, game.world.height / 2, 'flappy');
+	player.anchor.setTo(0.5, 0.5);
+	player.body.gravity.y = gravity;
+
+	// set up the group for the pipes
+	// we'll add them using a timer
+	// during game play
+	pipes = game.add.group();
+	pipes.setAll('immovable', true);
+
+
+	// set up particles for nice explosion
+	// effect
+	emitter = game.add.emitter(0, 0, 200);
+	emitter.makeParticles(
+		['particle_1', 'particle_2', 'particle_3']);
+	emitter.gravity = gravity;
+	emitter.minParticleSpeed.setTo(-gravity, -gravity);
+	emitter.maxParticleSpeed.setTo(gravity, gravity);
+
+	// creates score text
+	scoreText = game.add.text(game.world.width / 2 - 10, 16, score, {
+		font: '60px Arial Black',
+		fill: '#fff'
+	});
+	scoreText.visible = false;
+
+
+	// title text with tween effect 
+	titleText = game.add.text(game.world.centerX, -200, 'FlappySaucer', {
+		font: '34px Arial Black',
+		fill: '#73d216',
+		stroke: '#000',
+		strokeThickness: 4
+	});
+	titleText.anchor.setTo(0.5, 0.5);
+	game.add.tween(titleText)
+		.to({y: 160}, 2500, Phaser.Easing.Elastic.Out)
+		.start();
+
+
+}
+
+var update = function() {
+
+
+		// check for collisions with pipes
+		game.physics.collide(player, pipes, explode, null, this);
+
+		// out of bounds check & stops player from flying
+		// about all pipes.
+    if (player.alive && 
+			( player.y > 400 || player.y < -300 )) {
+        explode();
+    }
+
+		// check if player has passed pipe and
+		// updates score accordingly
+		// for the sake of efficency only the bottom
+		// pipe is checked
+    pipes.forEach(function(pipe) {
+        if (pipe.isBottom && 
+						pipe.hasPassed === false && 
+						pipe.position.x < player.position.x) {
+
+            pipe.hasPassed = true;
+            score += 1;
+        }
+    });
+
+
+		// check for click / tap
+		// if in splash mode, start the game
+		// otherwise apply a boost
+    game.input.onDown.add(function() {
+				// console.log(player.alive, isSplash);
+        if (isSplash) {
+            isSplash = false;
+            titleText.visible = false;
+            scoreText.visible = true;
+            player.body.gravity.y = gravity;
+						pipes.removeAll();
+            addPipes();
+        }
+        if (player.alive) {
+            player.body.velocity.y = -200;
+        }
+    });
+
+	// quick and dirty way of rotating player
+	// when in free fall
+	player.angle = (player.body.velocity.y < -5) ?
+		0 : player.body.velocity.y / 3;
+
+	// display current score
+	scoreText.content = score;
+	// scoreText.visible = (isSplash) ? true : false;
+
+	// in splash mode we don't want the player
+	// crashing to the ground so we'll overwrite
+	// a couple of properties to 'hold' in place
+	if (isSplash) {
+		player.body.gravity.y = 0;
+		player.body.velocity.y = 0;
+	}
+
+};
+
+
+var addPipes = function() {
+
+	// if in gameover or splash mode
+	// we don't need to do this
+  if (player.alive === false || isSplash) {
+		return;	
+	}
+
+
+	// randomly position pipe
+	var bottom = ~~(Math.random() * 200) + 150,
+			gap = game.world.height + pipeGap,
+			top = bottom - gap;
+
+	// add top pipe
+	var pipe = pipes.create(game.world.width + 50, top, 'pipe');
+	pipe.body.velocity.x = pipeSpeed;
+
+	// and the bottom pipe
+	pipe = pipes.create(game.world.width + 50, bottom, 'pipe');
+	pipe.body.velocity.x = pipeSpeed;
+	pipe.isBottom = true;
+	pipe.hasPassed = false;
+
+
+	// delay before adding the next set of pipes
+	// The first parameter is the time that should elapse
+	// second param is the number of times the event should repeat
+	// third param is the function that should be called
+	game.time.events.repeat(pipeInterval, 
+		1, addPipes, this);
+
+};
+
+var particleBurst = function(x, y, particles) {
+
+    // position 
+    emitter.x = x;
+    emitter.y = y;
+
+    particles = particles || 10;
+
+    //  The first parameter sets the effect to "explode" which means all particles are emitted at once
+    //  The second gives each particle a 2000ms lifespan
+    //  The third is ignored when using burst/explode mode
+    //  The final parameter is how many particles will be emitted in this single burst
+    emitter.start(true, 2000, null, particles);
+
+};
+
+
+var explode = function() {
+
+		if (isSplash || player.alive === false) {
+			return;
+		}
+
+		particleBurst(player.position.x, player.position.y, 20);
+		player.kill();
+
+		gameoverText = game.add.text(game.world.centerX, -200, 'Game Over', {
+			font: '34px Arial Black',
+			fill: '#600',
+			stroke: '#fff',
+			strokeThickness: 4
+		});
+		gameoverText.anchor.setTo(0.5, 0.5);
+		game.add.tween(gameoverText)
+			.to({y: 160}, 2500, Phaser.Easing.Elastic.Out)
+			.start();
+
+		// stop all pipes from moving
+		pipes.forEach(function(pipe) {
+				pipe.body.velocity.x = 0;
+		});
+
+		var exp = game.add.sprite(player.x, player.y, 'bang'); 
+		exp.scale.setTo(2, 2);
+		exp.anchor.setTo(0.5, 0.5);
+		exp.animations.add('bang', [0,1,2,3,4,5,6,7]);
+		exp.animations.play('bang', 10, false);
+		exp.events.onAnimationComplete.add(function(exp) {
+			exp.kill();	
+		});
+
+		window.setTimeout(function() {
+			game.input.onTap.addOnce(restart,this);
+		}, 2000);
+
+};
+
+var restart = function() {
+	
+
+		pipes.removeAll();
+		// reposition player in middle of the screen
+		player.y = game.world.height / 2; 
+        player.revive();
+
+		gameoverText.visible = false;
+		titleText.visible = true;
+
+		// back to splash screen mode and reset score
+		isSplash = true;
+		score = 0;
+		scoreText.visible = false;
+}
+
+
+// register our game with Phaser
+game = new Phaser.Game(w, h, Phaser.AUTO, '', {
+	preload: preload,
+	create: create,
+	update: update
+});
+
+})();
+
+</script>
+
+</body>
+</html>

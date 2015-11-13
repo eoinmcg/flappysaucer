@@ -1,0 +1,198 @@
+
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Listing 7 - FlappySaucer</title>
+</head>
+
+<body>
+
+<script src="phaser.min.js"></script>
+<script>
+
+(function() {
+
+// here we are defining the screen dimensions
+// this is the typical size for mobile portrait
+var w = 320,
+		h = 480,
+		background,
+		ground,
+		player,
+		pipes,
+		score = 0,
+		scoreText,
+		emitter;
+
+// here is where state what graphics
+// and sounds should be loaded.
+// Phaser does the rest
+var preload = function() {
+
+	// loading images is easy
+	// 1st param is the name for the image
+	// 2nd param is location of the image file
+	game.load.image('background', 'assets/bg.png');
+	game.load.image('ground', 'assets/ground.png');
+	game.load.image('flappy', 'assets/flappy.png');
+	game.load.image('pipe', 'assets/pipe.png');
+	game.load.image('particle', 'assets/particle.png');
+
+	game.load.spritesheet('bang', 'assets/explosion.png', 34, 34, 8);
+
+};
+
+
+// this function is called once 
+// all assets are loaded
+var create = function() {
+
+	// add background image, scaled to fit our
+	// screen dimensions
+	background = game.add.tileSprite(0, 0, w, h, 'background');
+
+	// add graphics for the ground
+	ground = game.add.sprite(0, 410, 'ground');
+
+	player = game.add.sprite(game.world.width / 2, game.world.height / 2, 'flappy');
+	player.body.gravity.y = 500;
+
+	// set up the group for the pipes
+	// we'll add them using a timer
+	// during game play
+	pipes = game.add.group();
+	pipes.setAll('immovable', true);
+	addPipes();
+
+	scoreText = game.add.text(game.world.width / 2 - 10, 16, score, {
+		font: '60px Arial Black',
+		fill: '#fff'
+	});
+	scoreText.content = score;
+
+	emitter = game.add.emitter(0, 0, 200);
+	emitter.makeParticles('particle');
+};
+
+
+// this is our main game loop
+// where we check for input, collisions
+// etc.
+var update = function() {
+
+	game.physics.collide(player, pipes, gameOver, null, this);
+
+    if (player.alive && 
+		(player.y > 400 || player.y < -300)) {
+        gameOver();
+    }
+
+    game.input.onDown.add(function() {
+		player.body.velocity.y = -200;
+    });
+
+
+	// check if player has passed pipe and
+	// updates score accordingly
+	// for the sake of efficency only the bottom
+	// pipe is checked
+    pipes.forEach(function(pipe) {
+        if (pipe.isBottom && 
+						pipe.hasPassed === false && 
+						pipe.position.x < player.position.x) {
+
+            pipe.hasPassed = true;
+            score += 1;
+			scoreText.content = score;
+        }
+    });
+};
+
+
+var gameOver = function() {
+	player.kill();
+	particleBurst();
+
+	var bang = game.add.sprite(player.x, player.y, 'bang'); 
+	bang.animations.add('bang', [0,1,2,3,4,5,6,7]);
+	bang.animations.play('bang', 10, false);
+	bang.events.onAnimationComplete.add(function(bang) {
+		bang.kill();	
+	});
+
+	pipes.forEach(function(pipe) {
+			pipe.body.velocity.x = 0;
+	});
+
+	game.add.text(100,100,'Game Over', {
+		font: '30px Arial Black',
+		color: 'red'
+	});
+};
+
+
+var particleBurst = function() {
+
+    // position 
+    emitter.x = player.x;
+    emitter.y = player.y;
+
+    //  The first parameter sets the effect to "explode" which means all particles are emitted at once
+    //  The second gives each particle a 2000ms lifespan
+    //  The third is ignored when using burst/explode mode
+    //  The final parameter is how many particles will be emitted in this single burst
+    emitter.start(true, 5000, null, 20);
+
+};
+
+
+var addPipes = function() {
+
+	// game is over we don't need to do this
+  if (!player.alive) {
+		return;	
+	}
+
+
+	// randomly position pipe
+	var bottom = ~~(Math.random() * 200) + 150,
+			gap = game.world.height + 60,
+			top = bottom - gap;
+
+	// add top pipe
+	var pipe = pipes.create(game.world.width + 50, top, 'pipe');
+	pipe.body.velocity.x = -50;
+
+	// and the bottom pipe
+	pipe = pipes.create(game.world.width + 50, bottom, 'pipe');
+	pipe.body.velocity.x = -50;
+	// we will need these to attributes
+	// for updating the player's score,
+	// which will be covered in the next step
+	pipe.isBottom = true;
+	pipe.hasPassed = false;
+
+
+	// delay before adding the next set of pipes
+	// The first parameter is the time that should elapse
+	// second param is the number of times the event should repeat
+	// third param is the function that should be called
+	game.time.events.repeat(3000, 
+		1, addPipes, this);
+
+};
+
+// create an instance of phaser
+var game = new Phaser.Game(w, h, Phaser.AUTO, '', {
+	preload: preload,
+	create: create,
+	update: update
+});
+
+})();
+
+</script>
+	
+</body>
+</html>

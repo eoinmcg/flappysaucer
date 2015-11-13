@@ -1,0 +1,60 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Listing 1 - FlappySaucer</title>
+</head>
+
+<body>
+
+<script src="phaser.min.js"></script>
+<script>
+
+(function() {
+
+// here we are defining the screen dimensions
+// this is the typical size for mobile portrait
+var w = 320,
+		h = 480;
+
+// here is where state what graphics
+// and sounds should be loaded.
+// Phaser does the rest
+var preload = function() {
+
+};
+
+
+// this function is called once 
+// all assets are loaded
+var create = function() {
+
+	game.add.text(0, 0, 'Hello World', {
+		font: '30px Arial Black',
+		fill: '#fff'
+	});
+
+};
+
+
+// this is our main game loop
+// where we check for input, collisions
+// etc.
+var update = function() {
+
+};
+
+
+// create an instance of phaser
+var game = new Phaser.Game(w, h, Phaser.AUTO, '', {
+	preload: preload,
+	create: create,
+	update: update
+});
+
+})();
+
+</script>
+	
+</body>
+</html>
